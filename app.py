@@ -5,6 +5,8 @@ from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 from flask_admin import AdminIndexView
 from flask import redirect, url_for, session, request
+from flask_admin.form import ImageUploadField
+from wtforms.fields import SelectField
 import os
 from flask_admin.menu import MenuLink
 
@@ -24,6 +26,7 @@ if not database_url:
 # 2) configura SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 
 
 # 3) Fuerza SSL/TLS (ojo: necesario solo si tu url no incluye sslmode)
@@ -69,6 +72,7 @@ class Producto(db.Model):
     imagen = db.Column(db.String(200))
     precio = db.Column(db.Float, nullable=False)
     id_categoria = db.Column(db.Integer, db.ForeignKey('categorias.id_categoria'), nullable=False)
+    categoria = db.relationship('Categoria', backref='productos')
 
 class Usuario(db.Model):
     __tablename__ = 'usuarios'
@@ -78,11 +82,36 @@ class Usuario(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False) # usuario de login 
     password = db.Column(db.String(128), nullable=False)
 
+class ProductoAdmin(ModelView):
+    # Personaliza el campo imagen para que permita subir archivos
+    form_extra_fields = {
+        'imagen': ImageUploadField('Imagen del porducto',
+            base_pah=os.path.join(os.getcwd(), 'static', 'uploads'),
+            relative_path='uploads/',
+            url_relative_path='static/uploads/')
+    }
+    form_overrides = {
+        'id_categoria': SelectField
+        }
+    form_columns = ['nombre', 'descripcion', 'imagen', 'precio','id_categoria']
+    # Sobrescribimos el tipo de campo
+    form_overrides = {
+        'id_categoria': SelectField
+        }
+    # Configuramos el comportamiento del SelectField
+    form_args = {
+        'id_categoria': {
+            'coerce': int,
+            'label': 'Categoría'
+            }
+        }
+
 # Flask-Admin
 admin = Admin(app, name='Panel Admin', template_mode='bootstrap3', index_view=MyAdminIndexView())
 admin.add_view(ModelView(Usuario, db.session))
 admin.add_view(ModelView(Categoria, db.session))
-admin.add_view(ModelView(Producto, db.session))
+#admin.add_view(ModelView(Producto, db.session))
+admin.add_view(ProductoAdmin(Producto, db.session))
 admin.add_link(MenuLink(name='cerrar sesión', category='', url='/admin/logout'))
 
 @app.route("/")
